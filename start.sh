@@ -1,18 +1,60 @@
 #!/bin/bash -e
-UPDATE="0"
-RESUMEPOINT="1"
 CURRENT_POS="1"
+RESUMEPOINT="1"
+UPDATE="0"
 
-if [[ $# -ne 0 ]]; then
-  RESUMEPOINT="$1"
-  if [[ $* == *--update* ]]; then UPDATE="1"; fi
+# Parse options
+if ! VALID_ARGS=$(getopt -o c:p:r:u --long config:,port:,resume:,update -- "$@")
+then
+  # getopt will output an error message, just exit
+  exit 1;
 fi
+
+set -- "$VALID_ARGS"
+while [ $# -gt 0 ]; do
+  #consume first arg
+  case "$1" in
+    -c | config) CONFIG_FILE="${2:setup/CONFIG.env}" 
+        shift ;;
+    -p | port) FORCE_SSH_PORT="$2" 
+        shift ;;
+    -r | resume) RESUMEPOINT="$2"
+        shift ;;
+    -u | update) UPDATE="1" ;;
+    --) shift
+        break
+        ;;
+    -*) cat << EndHelp
+Usage: 
+  ${0##*/} [--config --update]
+  ${0##*/} []
+
+Options:
+  -c CONFIG_FILE, --config CONFIG_FILE  The configuration file location [default: setup/CONFIG.env]
+  -p PORT_NUM, --port PORT_NUM          Force SSH to always connect using the specified port PORT_NUM. 
+  -u, --update                          Force the re-upload of all configuration files to the host,
+                                          even if skipping to a later step using the --resume option
+  -r STEP_NUM, --resume STEP_NUM        Skip to a specific step of the configuration process. This 
+                                          is useful if the script previously failed and must be 
+                                          restarted.
+
+EndHelp
+  esac
+  #move to next arg
+  shift
+done
 
 SCRIPTS_FOLDER_TO_TRANSFER="setup"
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 #LOAD CONFIG VARIABLES
-. "$SCRIPT_DIR/$SCRIPTS_FOLDER_TO_TRANSFER/CONFIG.env"
+. "$CONFIG_FILE"
+
+if [[ -n "$FORCE_SSH_PORT" ]]; then
+  echo "Forcing SSH port $FORCE_SSH_PORT for all connections..."
+  INITIAL_SSH_PORT="$FORCE_SSH_PORT"
+  SSH_PORT="$FORCE_SSH_PORT"
+fi
 
 echo
 echo "This script should be run on your local pc (not on the server)."
@@ -29,43 +71,26 @@ if (( ( RESUMEPOINT * UPDATE ) > 1 )); then
 
 fi
 
+###### STEP 1 ######
 if (( CURRENT_POS >= RESUMEPOINT )); then
 
   sleep 2
   echo
   echo "Transferring setup files..."
   echo "You will be asked for the root password for your Virtual Private Server (VPS)."
-
-
-  ##CONTROL SOCKETS DO NOT WORK WITH CYGWIN WINDOWS
-  ##Setup SSH Tunnel control socket
-  #SOCKET_FILE="socket-$SERVER_HOSTNAME.$SERVER_DOMAIN"
-  #ssh -fN -M -o ControlPath=$SOCKET_FILE root@$SERVER_HOSTNAME.$SERVER_DOMAIN
-  #while [ ! -e $SOCKET_FILE ]; do sleep 0.1; done
-
-  #Transfer Script Files
-  #scp -r -o ControlPath=$SOCKET_FILE $SCRIPTS_FOLDER_TO_TRANSFER root@$SERVER_HOSTNAME.$SERVER_DOMAIN:/setup
-
-  scp -r "$SCRIPT_DIR/$SCRIPTS_FOLDER_TO_TRANSFER" "root@$SERVER_HOSTNAME.$SERVER_DOMAIN:/setup"
+  scp -p "$INITIAL_SSH_PORT" -r "$SCRIPT_DIR/$SCRIPTS_FOLDER_TO_TRANSFER" "root@$SERVER_HOSTNAME.$SERVER_DOMAIN:/setup"
 
   #connect SSH
   echo
   echo "Connecting to the remote system..."
   echo "You will again be asked for the VPS root password."
 
-  #echo "After connecting, run the /setup/step1.sh script."
-  #echo "If you are not automatically connected, you may run the following command:"
-  #echo "ssh root@$SERVER_HOSTNAME.$SERVER_DOMAIN"
-  #echo
-  #read -p "Press Enter to continue... ([CTRL]-C to exit)"
-  #echo "Enter the root password for your Virtual Private Server (VPS)."
+  ssh -p "$INITIAL_SSH_PORT" -x "root@$SERVER_HOSTNAME.$SERVER_DOMAIN" "/setup/step1.sh"
 
-  #ssh -o ControlPath=$SOCKET_FILE root@$SERVER_HOSTNAME.$SERVER_DOMAIN "/setup/step1.sh"
-  ssh -x "root@$SERVER_HOSTNAME.$SERVER_DOMAIN" "/setup/step1.sh"
-
-  ##close socket
-  #ssh -S $SOCKET_FILE -O exit root@$SERVER_HOSTNAME.$SERVER_DOMAIN
-
+  echo
+  echo "You should have seen 'Step 1 is complete.'"
+  echo "If you did not see this, something went wrong. Continue only if step 2 completed successfully."
+  read -r -p "Press Enter to continue... ([CTRL]-C to exit)"
 
   #reconnect SSH
   echo
@@ -73,8 +98,8 @@ if (( CURRENT_POS >= RESUMEPOINT )); then
   echo "You will be reconnected to the remote system once the restart is complete."
   echo "This may take up to 60 seconds."
   echo
-  echo "If you are not automatically connected, you may run the following command:"
-  echo "ssh $ADMIN_USERNAME@$SERVER_HOSTNAME.$SERVER_DOMAIN -p $SSH_PORT \"/setup/step2.sh\""
+  echo "If you are not automatically connected, something may have gone wrong."
+  echo "If necessary, try manually restarting setup with the [--resume $(( CURRENT_POS + 1 ))] option"
   echo
   echo "Waiting 10 seconds for reconnection... Press [CTRL]-C to abort installation."
 
@@ -83,6 +108,8 @@ if (( CURRENT_POS >= RESUMEPOINT )); then
 fi
 CURRENT_POS=$(( CURRENT_POS + 1 ))
 
+
+######## STEP 2 #########
 if (( CURRENT_POS >= RESUMEPOINT )); then
 
   ssh -p "$SSH_PORT" -t "$ADMIN_USERNAME@$SERVER_HOSTNAME.$SERVER_DOMAIN" 'sudo /setup/step2.sh'
@@ -95,9 +122,14 @@ if (( CURRENT_POS >= RESUMEPOINT )); then
 fi
 CURRENT_POS=$(( CURRENT_POS + 1 ))
 
+
+######## STEP 3 #########
 if (( CURRENT_POS >= RESUMEPOINT )); then
   ssh -p "$SSH_PORT" -t "$ADMIN_USERNAME@$SERVER_HOSTNAME.$SERVER_DOMAIN" 'sudo /setup/odoo.sh'
 
-
+  echo
+  echo "You should have seen 'Step 3 is complete.'"
+  echo "If you did not see this, something went wrong. Continue only if step 2 completed successfully."
+  read -r -p "Press Enter to continue... ([CTRL]-C to exit)"
 fi  
 CURRENT_POS=$(( CURRENT_POS + 1 ))
