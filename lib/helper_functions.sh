@@ -1,6 +1,19 @@
 #!/bin/bash
 #HELPER FUNCTIONS
 
+####
+# NAME
+#   loadConfig()
+# DESCRIPTION
+#   Loads user configuration file, ensuring all required parameters are defined, and 
+#   all undefined optionals are set to default value.
+# USAGE
+#   loadconfig "CONFIG_FILE_PATH"
+####
+loadConfig(){
+  . "$1"
+  #TODO: Load Defaults
+}
 
 ####
 # https://stackoverflow.com/a/40167919

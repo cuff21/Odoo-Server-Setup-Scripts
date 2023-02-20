@@ -16,7 +16,7 @@ This repository contains helpful scripts for setting up and provisioning a Debia
 # CONFIG.env
 A configuration file must be setup in order to install correctly. Many of the parameters have good defaults, however there are some settings specific to your install that must be configured.
 
-An [example file](setup/example_conf.env) has been provided to start building a config. Fill in the required parameters 
+An [example file](SAMPLE.env) has been provided to start building a config. Fill in the required parameters 
 
 ## Required Configuration Parameters
 | Parameter | Description |

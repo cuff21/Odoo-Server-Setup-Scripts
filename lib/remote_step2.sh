@@ -1,6 +1,8 @@
 #!/bin/bash -e
 set -u
 
+#TODO: Move to setup_functions
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 #LOAD CONFIG VARIABLES

@@ -1,6 +1,8 @@
 #!/bin/bash -e
 set -u
 
+#TODO: Move to setup_functions
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 #LOAD CONFIG VARIABLES
@@ -54,7 +56,7 @@ fi
 mkdir -p "/var/lib/sudo/lectured" && touch "/var/lib/sudo/lectured/$ADMIN_USERNAME"
 
 #Disable sudo password for admin user (for step 2 installation)
-echo "$ADMIN_USER ALL=(ALL:ALL) NOPASSWD: ALL" | tee "$SUDOERS_FILE"
+echo "$ADMIN_USERNAME ALL=(ALL:ALL) NOPASSWD: ALL" | tee "$SUDOERS_FILE"
 
 # if [[ -f "$SUDOERS_FILE" ]]; then
 #   sed -i '/^#Defaults.*lecture.*$/s/^#//' "$SUDOERS_FILE"

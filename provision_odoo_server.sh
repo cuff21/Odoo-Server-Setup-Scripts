@@ -1,9 +1,16 @@
 #!/bin/bash -e
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+# Imports
+. "$SCRIPT_DIR/lib/helper_functions.sh"
+
+# Locals
 CURRENT_POS="1"
 RESUMEPOINT="1"
 UPDATE="0"
+SCRIPTS_FOLDER_TO_TRANSFER="lib"
 
-# Parse options
+### PARSE ARGUMENTS ###
 if ! VALID_ARGS=$(getopt -o c:p:r:u --long config:,port:,resume:,update -- "$@")
 then
   # getopt will output an error message, just exit
@@ -14,7 +21,7 @@ set -- "$VALID_ARGS"
 while [ $# -gt 0 ]; do
   #consume first arg
   case "$1" in
-    -c | config) CONFIG_FILE="${2:setup/CONFIG.env}" 
+    -c | config) CONFIG_FILE="$2" 
         shift ;;
     -p | port) FORCE_SSH_PORT="$2" 
         shift ;;
@@ -26,11 +33,11 @@ while [ $# -gt 0 ]; do
         ;;
     -*) cat << EndHelp
 Usage: 
-  ${0##*/} [--config --update]
-  ${0##*/} []
+  ${0##*/} [-l] [-r STEP_NUM] -c CONFIG_FILE
+  ${0##*/} [-p PORT_NUM] [-u] [-r STEP_NUM] -c CONFIG_FILE
 
 Options:
-  -c CONFIG_FILE, --config CONFIG_FILE  The configuration file location [default: setup/CONFIG.env]
+  -c CONFIG_FILE, --config CONFIG_FILE  The configuration file location
   -p PORT_NUM, --port PORT_NUM          Force SSH to always connect using the specified port PORT_NUM. 
   -u, --update                          Force the re-upload of all configuration files to the host,
                                           even if skipping to a later step using the --resume option
@@ -44,11 +51,9 @@ EndHelp
   shift
 done
 
-SCRIPTS_FOLDER_TO_TRANSFER="setup"
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
 #LOAD CONFIG VARIABLES
-. "$CONFIG_FILE"
+loadConfig "$CONFIG_FILE"
+
 
 if [[ -n "$FORCE_SSH_PORT" ]]; then
   echo "Forcing SSH port $FORCE_SSH_PORT for all connections..."
