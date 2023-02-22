@@ -1,0 +1,107 @@
+#!/bin/bash
+####
+# NAME
+#   __config_read_variable()
+# DESCRIPTION
+#   Read a variable from the user configuration file, and set to default value if 
+#   variable is not found. Default value can be excluded to instead throw an 
+#   error if not found (useful for missing required config parameters).
+# USAGE
+#   __config_read_variable "CONFIG_FILE_PATH" "VARIABLE_NAME" ["DEFAULT_VALUE"]
+# RETURNS
+#   Value of the loaded variable
+####
+__config_var() {
+  local file="$1" var="$2" default="$3"
+  val="$( ( grep -E "^$var=" -m 1 "$file" 2>/dev/null || echo "$var=" ) | head -n 1 | cut -d '=' -f 2- )"
+  if [[ -z "$default" ]]; then
+    : "${val:?"$var" - Missing from config file \""$file"\"}"
+  fi
+
+  #evaluate template variables
+  val="$(evalConfigTemplate <<< "$val")"
+
+  #have to use printf because declare -g isn't widely supported
+  printf -v "$var" -- "%s" "${val:=$default}"
+  }
+
+####
+# NAME
+#   config_load()
+# DESCRIPTION
+#   Loads user configuration file, ensuring all required parameters are defined, and 
+#   all undefined optionals are set to default value.
+# USAGE
+#   config_load "CONFIG_FILE_PATH"
+####
+config_load(){
+  local configfile="$1"
+  
+  # Required Config
+  __config_var "$configfile" "MY_EMAIL_ADDRESS"
+  __config_var "$configfile" "SERVER_HOSTNAME"
+  __config_var "$configfile" "SERVER_DOMAIN"
+  __config_var "$configfile" "SSH_PORT"
+  __config_var "$configfile" "SMTP_RELAY_DOMAIN"
+  __config_var "$configfile" "SMTP_RELAY_PORT"
+  __config_var "$configfile" "SMTP_RELAY_USERNAME"
+  __config_var "$configfile" "SMTP_RELAY_PASSWORD"
+  __config_var "$configfile" "COMPANY_NAME"
+  __config_var "$configfile" "ODOO_ADMIN_PASSWD"
+  __config_var "$configfile" "ODOO_DB_PASSWORD"
+  __config_var "$configfile" "ODOO_WORKER_COUNT"
+  __config_var "$configfile" "ODOO_CRON_THREAD_COUNT"
+  __config_var "$configfile" "ODOO_MAX_RAM_MB"
+
+  # Set Optional Config
+  __config_var "$configfile" "ADMIN_USERNAME" "companyadmin"
+  __config_var "$configfile" "INITIAL_SSH_PORT" "22"
+  __config_var "$configfile" "NGINX_PROXY_NAME" "$SERVER_HOSTNAME"
+  __config_var "$configfile" "SERVER_EMAIL_DOMAIN" "$SERVER_DOMAIN"
+  __config_var "$configfile" "SERVER_AUTOMAIL_ADDRESS" "noreply@$SERVER_EMAIL_DOMAIN"
+  __config_var "$configfile" "NGINX_SSL_CRT_PATH" "/etc/letsencrypt/live/$SERVER_HOSTNAME.$SERVER_DOMAIN/fullchain.pem"
+  __config_var "$configfile" "NGINX_SSL_KEY_PATH" "/etc/letsencrypt/live/$SERVER_HOSTNAME.$SERVER_DOMAIN/privkey.pem"
+  __config_var "$configfile" "NGINX_SSL_TRUSTED_CERT_PATH" "/etc/letsencrypt/live/$SERVER_HOSTNAME.$SERVER_DOMAIN/chain.pem"
+  __config_var "$configfile" "ODOO_SYSTEM_USERNAME" "odoo16"
+  __config_var "$configfile" "ODOO_REPO" "https://github.com/odoo/odoo.git"
+  __config_var "$configfile" "ODOO_REPO_BRANCH" "16.0"
+  __config_var "$configfile" "ODOO_CONF_PATH" "/etc/odoo16.conf"
+  __config_var "$configfile" "ODOO_SERVICE_NAME" "odoo16"
+  __config_var "$configfile" "ODOO_INSTALL_PARENT_PATH" "/opt/odoo/odoo-server/"
+  __config_var "$configfile" "ODOO_INSTALL_ROOT_PATH" "$ODOO_INSTALL_PARENT_PATH/$ODOO_REPO_BRANCH"
+  __config_var "$configfile" "ODOO_LOGPATH" "/var/log/odoo"
+  __config_var "$configfile" "ODOO_ADDON_PATH" "$ODOO_INSTALL_ROOT_PATH/addons"
+ 
+}
+
+####
+# https://stackoverflow.com/a/40167919
+# NAME
+#   evalConfigTemplate()
+# DESCRIPTION
+#   Evaluates Variables within configuration templates.
+#   Config variables MUST be in format ${varname}. NOTHING ELSE is expanded.
+#   To treat a ${ as a literal, \-escape it; e.g.:\${HOME} 
+# USAGE
+#   evalConfigTemplate < /path/to/template.conf
+#   evalConfigTemplate <<< 'Template string literal ${variable}'
+####
+evalConfigTemplate(){
+  local line lineEscaped
+  while IFS= read -r line || [[ -n $line ]]; do  # the `||` clause ensures that the last line is read even if it doesn't end with \n
+    # Escape ALL chars. that could trigger an expansion..
+    lineEscaped=$(printf %s "$line" | tr '`([$' '\1\2\3\4')
+
+    # ... then selectively reenable ${ references
+    lineEscaped=${lineEscaped//$'\4'{/\${}
+
+    # Finally, escape embedded double quotes to preserve them.
+    lineEscaped=${lineEscaped//\"/\\\"}
+
+    eval "printf '%s\n' \"$lineEscaped\"" | tr '\1\2\3\4' '`([$'
+    if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+      >&2 echo "Error processing template."
+      return 1
+    fi
+  done
+}

@@ -2,7 +2,7 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 # Imports
-. "$SCRIPT_DIR/lib/helper_functions.sh"
+. "$SCRIPT_DIR/lib/config_funcs.shlib"
 
 # Locals
 CURRENT_POS="1"
@@ -52,7 +52,7 @@ EndHelp
 done
 
 #LOAD CONFIG VARIABLES
-loadConfig "$CONFIG_FILE"
+config_load "$CONFIG_FILE"
 
 
 if [[ -n "$FORCE_SSH_PORT" ]]; then

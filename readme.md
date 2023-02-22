@@ -16,7 +16,7 @@ This repository contains helpful scripts for setting up and provisioning a Debia
 # CONFIG.env
 A configuration file must be setup in order to install correctly. Many of the parameters have good defaults, however there are some settings specific to your install that must be configured.
 
-An [example file](SAMPLE.env) has been provided to start building a config. Fill in the required parameters 
+An [example file](SAMPLE.conf) has been provided to start building a config. Fill in the required parameters 
 
 ## Required Configuration Parameters
 | Parameter | Description |
@@ -37,25 +37,27 @@ An [example file](SAMPLE.env) has been provided to start building a config. Fill
 |ODOO_MAX_RAM_MB=820 | Odoo Memory allocation (See [Documentation](https://www.odoo.com/documentation/16.0/administration/install/deploy.html#memory-size-calculation)) |
 
 
-## Optional configuration Parameters
+## Optional advanced configuration Parameters
 These parameters are preset to good default values and do not need to be modified except for advanced users.
+
+>Note: Advanced variables have the ability to reference any of the above required variables. <br/><br/>To reference a required variable, use the format `${REQUIRED_PARAMETER_NAME}`.
 
 | Parameter | Description | Default Value |
 | --------- | ----------- | ------------- |
 | ADMIN_USERNAME | The Debian username for the system admin | "companyadmin" |
 | INITIAL_SSH_PORT | The starting port for SSH, This will be changed after initial configuration of the service | 22 |
-| NGINX_PROXY_NAME | The reverse proxy hostname that will be used for accessing Odoo, if not the server's hostname. <br /><br />*Example:* "odoo" for odoo.mydomain.com | "$SERVER_HOSTNAME" | 
-|SERVER_EMAIL_DOMAIN| A seperate domain that may be used for automated server emails | $SERVER_DOMAIN |
-|SERVER_AUTOMAIL_ADDRESS| The "From:" address for any server mail | "noreply@$SERVER_EMAIL_DOMAIN"
-| NGINX_SSL_CRT_PATH | Full chain SSL certificate path | "/etc/letsencrypt/live/\$SERVER_HOSTNAME.\$SERVER_DOMAIN/fullchain.pem" |
-| NGINX_SSL_KEY_PATH | SSL Private Key Path | "/etc/letsencrypt/live/\$SERVER_HOSTNAME.\$SERVER_DOMAIN/privkey.pem" |
-| NGINX_SSL_TRUSTED_CERT_PATH | SSL Chain Path | "/etc/letsencrypt/live/\$SERVER_HOSTNAME.\$SERVER_DOMAIN/chain.pem" |
+| NGINX_PROXY_NAME | The reverse proxy hostname that will be used for accessing Odoo, if not the server's hostname. <br /><br />*Example:* "odoo" for odoo.mydomain.com | "${SERVER_HOSTNAME}" | 
+|SERVER_EMAIL_DOMAIN| A seperate domain that may be used for automated server emails | "${SERVER_DOMAIN}" |
+|SERVER_AUTOMAIL_ADDRESS| The "From:" address for any server mail | "noreply@${SERVER_EMAIL_DOMAIN}"
+| NGINX_SSL_CRT_PATH | Full chain SSL certificate path | "/etc/letsencrypt/live/\${SERVER_HOSTNAME}.\${SERVER_DOMAIN}/fullchain.pem" |
+| NGINX_SSL_KEY_PATH | SSL Private Key Path | "/etc/letsencrypt/live/\${SERVER_HOSTNAME}.\${SERVER_DOMAIN}/privkey.pem" |
+| NGINX_SSL_TRUSTED_CERT_PATH | SSL Chain Path | "/etc/letsencrypt/live/\${SERVER_HOSTNAME}.\${SERVER_DOMAIN}/chain.pem" |
 | ODOO_SYSTEM_USERNAME | the debian username for running Odoo | "odoo16" |
 | ODOO_REPO | The Odoo git repo to clone for installation | 'https://github.com/odoo/odoo.git' |
 | ODOO_REPO_BRANCH | The git repo branch to clone for installation | '16.0' |
 | ODOO_CONF_PATH | The path for the Odoo configuration file | "/etc/odoo16.conf" |
-| ODOO_SERVICE_NAME | The Systemd service name for the Odoo application service | odoo16 |
+| ODOO_SERVICE_NAME | The Systemd service name for the Odoo application service | "odoo16" |
 | ODOO_INSTALL_PARENT_PATH | The parent directory of the Odoo installation | "/opt/odoo/odoo-server/" |
-| ODOO_INSTALL_ROOT_PATH | The root directory of the Odoo installation | "\$ODOO_INSTALL_PARENT_PATH/\$ODOO_REPO_BRANCH" |
+| ODOO_INSTALL_ROOT_PATH | The root directory of the Odoo installation | "\${ODOO_INSTALL_PARENT_PATH}/\${ODOO_REPO_BRANCH}" |
 | ODOO_LOGPATH | The logfile directory of the Odoo application | "/var/log/odoo" |
-| ODOO_ADDON_PATH | The Addon directory for Odoo | "$ODOO_INSTALL_ROOT_PATH/addons" |
+| ODOO_ADDON_PATH | The Addon directory for Odoo | "${ODOO_INSTALL_ROOT_PATH}/addons" |
