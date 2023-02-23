@@ -96,7 +96,7 @@ if (( START_AT <= 3 )); then
 
   setSSL "$ACME_CHALLENGE_PATH" "$NGINX_ACME_SNIPPET_PATH" "$NGINX_SSL_SNIPPET_PATH"\
          "$SERVER_HOSTNAME.$SERVER_DOMAIN" "$MY_EMAIL_ADDRESS" 
-  setFail2ban
+  setFail2ban "$SSH_PORT"
 fi
 
 # Cleanup

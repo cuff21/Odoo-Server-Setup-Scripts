@@ -405,19 +405,26 @@ EOF_NGINX
   systemctl restart nginx
 }
 
+###
+# DESCRIPTION
+#   Install and configure fail2ban  
+# USAGE
+#   setFail2ban SSH_PORT
+###
 setFail2ban() 
 {
-  local FAIL2BAN_JAIL_LOCAL="/etc/fail2ban/jail.local"
+  local ssh_port="${1:?Required}"
+  local fail2ban_jail_local="/etc/fail2ban/jail.local"
 
   #fail2ban
   echo "Initializing fail2ban"
   apt-get -yq install fail2ban
 
   #only copy default if local jail does not exist
-  test -f "$FAIL2BAN_JAIL_LOCAL" || cp /etc/fail2ban/jail.conf "$FAIL2BAN_JAIL_LOCAL"
+  test -f "$fail2ban_jail_local" || cp /etc/fail2ban/jail.conf "$fail2ban_jail_local"
 
-  sed -i "s/banaction[[:blank:]]*=.*/banaction = ufw/" "$FAIL2BAN_JAIL_LOCAL"
-  sed -i "/^\[sshd\]$/,/^\[/s/port[[:blank:]]*=.*/port = ssh,$SSH_PORT/" "$FAIL2BAN_JAIL_LOCAL"
+  sed -i "s/banaction[[:blank:]]*=.*/banaction = ufw/" "$fail2ban_jail_local"
+  sed -i "/^\[sshd\]$/,/^\[/s/port[[:blank:]]*=.*/port = ssh,$ssh_port/" "$fail2ban_jail_local"
 
   service fail2ban restart
 }
