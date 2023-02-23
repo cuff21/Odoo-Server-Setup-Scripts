@@ -52,6 +52,7 @@ These parameters are preset to good default values and do not need to be modifie
 | NGINX_SSL_CRT_PATH | Full chain SSL certificate path | "/etc/letsencrypt/live/\${SERVER_HOSTNAME}.\${SERVER_DOMAIN}/fullchain.pem" |
 | NGINX_SSL_KEY_PATH | SSL Private Key Path | "/etc/letsencrypt/live/\${SERVER_HOSTNAME}.\${SERVER_DOMAIN}/privkey.pem" |
 | NGINX_SSL_TRUSTED_CERT_PATH | SSL Chain Path | "/etc/letsencrypt/live/\${SERVER_HOSTNAME}.\${SERVER_DOMAIN}/chain.pem" |
+|ACME_CHALLENGE_PATH | The path which will contain the ".well-known" ACME challenge folder for SSL domain verification. This will be hosted with public viewing access, so make sure this folder contains no other files | "/var/lib/letsencrypt"
 | ODOO_SYSTEM_USERNAME | the debian username for running Odoo | "odoo16" |
 | ODOO_REPO | The Odoo git repo to clone for installation | 'https://github.com/odoo/odoo.git' |
 | ODOO_REPO_BRANCH | The git repo branch to clone for installation | '16.0' |

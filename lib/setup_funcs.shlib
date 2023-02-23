@@ -1,0 +1,423 @@
+#!/bin/bash
+
+updateSystem()
+{
+  apt-get -yq -q update && apt-get -yq upgrade
+  apt-get -yq dist-upgrade
+  apt-get -yq install sudo
+  apt-get -yq autoremove
+}
+
+###
+# DESCRIPTION
+#   Set owner, group, and chmod permissions for a file or folder (recursive).
+# USAGE
+#   setPermissions NEW_OWNER NEW_GROUP CHMOD_PERMISSIONS FILE_OR_FOLDER_PATH
+###
+setPermissions() 
+{
+  local user="${1:?Required}", group="${2:?Required}", permissions="${3:?Required}", files="${4,Required}" 
+  chown -R "$user" "$files"
+  chgrp -R "$group" "$files"
+  chmod -R "$permissions" "files"
+}
+
+
+###
+# DESCRIPTION
+#   Increase minimum password complexity.
+# USAGE
+#   setPasswordRequirements [PAM_COMMON_PASSWORD_FILE_PATH] 
+###
+setPasswordRequirements() 
+{
+  local pass_conf_file="${1:="/etc/pam.d/common-password"}"
+
+  #Enable password complexity requirements
+  apt-get -yq install libpam-cracklib
+
+  if grep -Fxq "pam_cracklib" "$pass_conf_file"; then
+    echo "Password requirements already set."
+  else
+    echo "password        requisite                       pam_cracklib.so retry=3 minlen=8 difok=3" >> "$pass_conf_file"
+  fi
+}
+
+
+###
+# DESCRIPTION
+#   Create a new user and grant sudo & ssh permissions
+# USAGE
+#   setAdminUser USERNAME 
+###
+setAdminUser() 
+{
+  local username="${1:?Required}"
+
+  #setup admin user
+  if id "$username" &>/dev/null; then
+      echo "$username user already exists."
+  else
+      echo "Adding $username user account."
+      echo
+      echo "Please set a password for your new Admin account ('$username'):"
+      echo
+      adduser --gecos '' "$username"
+      usermod -a -G sudo "$username"
+      home_dir=$(eval echo "~$username")
+      
+      echo "Admin user home folder: $home_dir"
+      sudo -u "$username" ssh-keygen -q -N "" -f "$home_dir/.ssh/id_rsa" 
+      
+      setPermissions "$username" "$username" 0700 "$home_dir/.ssh"
+
+      touch "$home_dir/.ssh/authorized_keys"
+      setPermissions "$username" "$username" 0600 "$home_dir/.ssh/authorized_keys"
+  fi
+}
+
+###
+# DESCRIPTION
+#   Enable/Disable sudo password (for temporary promptless access)
+# USAGE
+#   sudoNoPassword USERNAME PASSWORD_ENABLE
+# PARAMETERS
+#   USERNAME          The user for whom to change the sudo password requirement
+#   ENABLE_PASSWORD   true to enable password, false to disable password
+###
+sudoRequirePassword() 
+{
+  local username="${1:?Required}", enable_pass="${2:?Required}"
+  local sudoers_file="/etc/sudoers.d/${username}NOPASSWORD"
+
+  #disable sudoers warning
+  mkdir -p "/var/lib/sudo/lectured" && touch "/var/lib/sudo/lectured/$username"
+
+  if [[ "$enable_pass" = false ]]; then
+    # Disable sudo password
+    echo "$username ALL=(ALL:ALL) NOPASSWD: ALL" | tee "$sudoers_file"
+  elif [[ "$enable_pass" = true ]]; then
+    # Enable sudo password
+    rm -f "$sudoers_file"
+  fi
+}
+
+###
+# DESCRIPTION
+#   Disable IPv6
+# USAGE
+#   disableIPv6 [SSH_CONFIG_FILE_PATH] 
+###
+disableIPv6() 
+{
+  local ssh_config="${1:="/etc/ssh/sshd_config"}"
+
+  #disable ipv6
+  sed -i '/^#AddressFamily .*$/s/^#//' "$ssh_config"
+  sed -i '/^AddressFamily/s/ .*/ inet/' "$ssh_config"
+}
+
+###
+# DESCRIPTION
+#   Set the port on which the sshd listens
+# USAGE
+#   setSSHPort PORT_NUM [SSH_CONFIG_FILE_PATH] 
+###
+setSSHPort() 
+{
+  local ssh_port="${1:?Required}" ssh_config="${2:="/etc/ssh/sshd_config"}"
+
+  #change port
+  sed -i '/^#Port 22$/s/^#//' "$ssh_config"
+  sed -i '/^Port 22$/s/ 22/ '"$ssh_port"'/' "$ssh_config"
+}
+
+###
+# DESCRIPTION
+#   Set the user which has access to ssh. Restrict access for all other users.
+# USAGE
+#   setSSHPort "SPACE SEPERATED USERNAMES" [SSH_CONFIG_FILE_PATH] 
+###
+setSSHUser() 
+{
+  local username="${1:?Required}", ssh_config="${2:="/etc/ssh/sshd_config"}"
+
+  #restrict SSH users
+  if grep -Fxq "AllowUsers" "$ssh_config"; then
+    sed -i '/^#AllowUsers .*$/s/^#//' "$ssh_config"
+    sed -i '/^AllowUsers/s/ .*/ '"$username"'/' "$ssh_config"
+  else
+    echo "AllowUsers $username" >> "$ssh_config"
+  fi
+}
+
+###
+# DESCRIPTION
+#   Install logwatch and configure to send email updates
+# USAGE
+#   setLogwatch 
+###
+setLogwatch() 
+{
+  #LOG MANAGEMENT
+  echo
+  echo "Installing Logwatch/Logrotate"
+
+  #FIXME: doesn't actually send daily emails...
+  apt-get -yq install logwatch logrotate
+  tee /etc/cron.daily/00logwatch <<<"/usr/sbin/logwatch --output mail --mailto $MY_EMAIL_ADDRESS --detail high"
+
+  service logwatch restart
+}
+
+###
+# DESCRIPTION
+#   Install/Enable UFW firewall, allowing only ssh and dns rules
+# USAGE
+#   setFirewall SSH_PORT 
+###
+setFirewall() 
+{
+  local ssh_port="${1:?Required}"
+  echo "Initializing firewall"
+  apt-get -yq install ufw
+  ufw allow ssh
+  ufw allow dns
+  ufw allow "$ssh_port/tcp"
+
+  ufw --force enable
+}
+
+###
+# DESCRIPTION
+#   Prevent login with the root account. Root must be accessed with sudo.
+# USAGE
+#   disableRootLogin [SSH_CONFIG_FILE_PATH]
+###
+disableRootLogin() 
+{
+  local ssh_config="${1:="/etc/ssh/sshd_config"}"
+
+  #disable Root Login
+  sed -i '/^PermitRootLogin/s/ .*/ no/' "$ssh_config"
+
+  echo "Please create an SSH Key and disable password login for optimal security"
+  ##disable password login
+  #sed -i '/^PasswordAuthentication/s/ .*/ no/' "$ssh_config"
+}
+
+###
+# DESCRIPTION
+#   Delete firewall rule for allowing default SSH port. 
+# USAGE
+#   setSSHFirewall
+###
+setSSHFirewall() 
+{
+  #FIREWALL
+  echo "Removing default SSH Port firewall rule"
+  ufw delete allow ssh
+  service ufw restart
+}
+
+###
+# DESCRIPTION
+#   Configure mailutils & postfix to allow emailing via an SMTP relay. 
+# USAGE
+#   setEmailRelay FROM_DOMAIN RELAY_DOMAIN RELAY_PORT RELAY_USERNAME RELAY_PASSWORD
+# PARAMETERS
+#   FROM_DOMAIN     The "from" domain that emails sent from this server will use.
+#   RELAY_DOMAIN    The domain of the SMTP relay to which emails will be sent
+#   RELAY_PORT      The port of the SMTP relay to which emails will be sent
+#   RELAY_USERNAME  The login username to authenticate with the SMTP relay.
+#   RELAY_PASSWORD  The password to authenticate with the SMTP relay.
+###
+setEmailRelay() 
+{
+  local from_domain="${1:?Required}", relay_domain="${2:?Required}", relay_port="${3:?Required}", \
+        relay_username="${4:?Required}", relay_password="${5:?Required}"
+
+  #EMAIL
+  echo "Configuring Email"
+  apt-get -yq install mailutils
+
+  tee "/etc/mailutils.conf" <<EndOfMessage
+  address{
+      email-domain $from_domain;
+  };
+EndOfMessage
+
+  debconf-set-selections <<< "postfix postfix/mailname string $from_domain"
+  debconf-set-selections <<< "postfix postfix/main_mailer_type string 'Internet Site'"
+  apt-get install --assume-yes postfix 
+  apt-get install libsasl2-modules -y
+
+  #FIXME: I think this is removing some existing configuration?
+  postconf -e "smtp_sasl_auth_enable = yes"
+  postconf -e "smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd"
+  postconf -e "smtp_sasl_security_options = noanonymous"
+  postconf -e "smtp_sasl_tls_security_options = noanonymous"
+  postconf -e "smtp_tls_security_level = encrypt"
+  postconf -e "smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt"
+  postconf -e "header_size_limit = 4096000"
+  postconf -e "relayhost = [$relay_domain]:$relay_port"
+  postconf -e "myhostname = $from_domain"
+  postconf -e "alias_maps = hash:/etc/aliases"
+
+  #store relay login info
+  echo "[$relay_domain]:$relay_port $relay_username:$relay_password" > "/etc/postfix/sasl_passwd"
+  postmap /etc/postfix/sasl_passwd
+  setPermissions "root" "root" 600 /etc/postfix/sasl_passwd /etc/postfix/sasl/sasl_passwd.db
+  
+  systemctl restart postfix
+}
+
+###
+# DESCRIPTION
+#   Configure unattended upgrades to automatically patch security vulnerabilities and
+#   notify the administrator of software updates. 
+# USAGE
+#   setUnattendedUpgrades ADMIN_EMAIL_ADDRESS
+# PARAMETERS
+#   ADMIN_EMAIL_ADDRESS   The admin email that will receive update notificationss.
+###
+setUnattendedUpgrades() 
+{
+  local to_email="${1:?Required}"
+  local unattended_10periodic_conf="/etc/apt/apt.conf.d/10periodic"
+  local unattended_50unattended_conf="/etc/apt/apt.conf.d/50unattended-upgrades"
+
+  #UNATTENDED UPGRADES
+  echo "Configuring Unattended Security Upgrades"
+  apt-get update && apt-get -yq upgrade
+  apt-get -yq install unattended-upgrades apt-config-auto-update
+
+  systemctl enable unattended-upgrades
+
+  tee "$unattended_10periodic_conf" <<'EndOfMessage'
+  APT::Periodic::Update-Package-Lists "1";
+  APT::Periodic::Download-Upgradeable-Packages "1";
+  APT::Periodic::AutocleanInterval "7";
+  APT::Periodic::Unattended-Upgrade "1";
+EndOfMessage
+
+  tee "$unattended_50unattended_conf" <<'EndOfMessage'
+  Unattended-Upgrade::Allowed-Origins {
+  "${distro_id}:${distro_codename}";
+  "${distro_id}:${distro_codename}-security";
+  "${distro_id}ESMApps:${distro_codename}-apps-security";
+  "${distro_id}ESM:${distro_codename}-infra-security";
+  //"${distro_id}:${distro_codename}-updates";
+  };
+  Unattended-Upgrade::Automatic-Reboot "true";
+EndOfMessage
+#FIXME: Emails are not sending for some reason..
+  tee -a "$unattended_50unattended_conf" < "Unattended-Upgrade::Mail \"$to_email\";"
+  sed -i '/^email_address=/s/.*/'"$to_email"'/' "/etc/apt/listchanges.conf"
+
+  systemctl restart unattended-upgrades
+}
+
+###
+# DESCRIPTION
+#   Install and configure Nginx  
+# USAGE
+#   setNginx
+###
+setNginx() 
+{
+  apt-get -yq install nginx
+  ufw allow 'Nginx Full'
+  systemctl enable nginx
+}
+
+###
+# DESCRIPTION
+#   Configure letsencrypt and certbot for automatic ssl certificate. 
+# USAGE
+#   setSSL ACME_PATH ACME_SNIPPET SSL_SNIPPET FQDN EMAIL
+# PARAMETERS
+#   ACME_PATH     The path to set as the webroot for the ACME ".well-known" folder
+#   ACME_SNIPPET  The NGINX snippet file containing the ACME .well-known configuration
+#   SSL_SNIPPET   The NGINX snippet file containing SSL configuration
+#   FQDN          The Fully Qualified Domain Name of the server (hostname.domain)
+#   EMAIL         The admin email address for registering with letsencrypt
+###
+setSSL() 
+{
+  local acme_challenge_path="${1:?Required}", nginx_acme_snippet="${2:?Required}", \
+        nginx_ssl_snippet="${3:?Required}", nginx_fqdn="${4:?Required}", \
+        admin_email="${5:?Required}"
+  
+  local nginx_avail_path="/etc/nginx/sites-available"
+  local nginx_enable_path="/etc/nginx/sites-enabled"
+
+  #TODO: Evaluate templates outside of this function, and \
+  #      pass the path of the final conf to this function instead.
+  local ssl_nginx_template="$SCRIPT_DIR/template_ssl.conf" #FIXME: See above
+  local le_acme_nginx_template="$SCRIPT_DIR/template_letsencrypt.conf" #FIXME: See above
+
+  
+  #SSL
+  # letsencrypt setup
+  apt-get -y install certbot
+
+  echo "Creating ACME challenge folder"
+  mkdir -p "$acme_challenge_path/.well-known"
+  chgrp www-data "$acme_challenge_path"
+  chmod g+s "$acme_challenge_path"
+
+  # Copy ssl.conf, letsencrypt.conf to snippets
+  echo "Copying NGINX snippet templates" #FIXME: See above
+  evalConfigTemplate < "$le_acme_nginx_template" > "$nginx_acme_snippet"
+  evalConfigTemplate < "$ssl_nginx_template" > "$nginx_ssl_snippet"
+
+  # Create temp nginx config if it doesn't exist
+  echo "Configuring nginx to pass SSL domain verification"
+  nginx_temp=0
+  if [[ ! -f "$nginx_avail_path/$nginx_fqdn.conf" ]]; then
+      nginx_temp=1
+      #Temporary nginx conf
+      cat << EOF_NGINX > "$nginx_avail_path/$nginx_fqdn.conf"
+  server {
+      listen 80;
+      server_name $nginx_fqdn;
+      include snippets/letsencrypt.conf;
+  }
+EOF_NGINX
+
+      ln -s "$nginx_avail_path/$nginx_fqdn.conf" "$nginx_enable_path/"
+      systemctl restart nginx 
+  fi
+
+  # run certbot
+  echo "Aqcuiring certificate"
+  certbot certonly -n --agree-tos --email "$admin_email" --webroot -w "$acme_challenge_path" -d "$nginx_fqdn"
+  grep -qF -- "deploy-hook = systemctl reload nginx" "/etc/letsencrypt/cli.ini" || echo " deploy-hook = systemctl reload nginx" >> "/etc/letsencrypt/cli.ini"
+
+  # clean up temp 
+  if [[ nginx_temp -eq 1 ]]; then
+      echo "Cleaning up nginx temp configs"
+      rm "$nginx_enable_path/$nginx_fqdn.conf"
+      rm "$nginx_avail_path/$nginx_fqdn.conf"
+  fi
+
+  systemctl restart nginx
+}
+
+setFail2ban() 
+{
+  local FAIL2BAN_JAIL_LOCAL="/etc/fail2ban/jail.local"
+
+  #fail2ban
+  echo "Initializing fail2ban"
+  apt-get -yq install fail2ban
+
+  #only copy default if local jail does not exist
+  test -f "$FAIL2BAN_JAIL_LOCAL" || cp /etc/fail2ban/jail.conf "$FAIL2BAN_JAIL_LOCAL"
+
+  sed -i "s/banaction[[:blank:]]*=.*/banaction = ufw/" "$FAIL2BAN_JAIL_LOCAL"
+  sed -i "/^\[sshd\]$/,/^\[/s/port[[:blank:]]*=.*/port = ssh,$SSH_PORT/" "$FAIL2BAN_JAIL_LOCAL"
+
+  service fail2ban restart
+}

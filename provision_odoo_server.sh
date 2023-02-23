@@ -21,13 +21,13 @@ set -- "$VALID_ARGS"
 while [ $# -gt 0 ]; do
   #consume first arg
   case "$1" in
-    -c | config) CONFIG_FILE="$2" 
+    -c | --config) CONFIG_FILE="$2" 
         shift ;;
-    -p | port) FORCE_SSH_PORT="$2" 
+    -p | --port) FORCE_SSH_PORT="$2" 
         shift ;;
-    -r | resume) RESUMEPOINT="$2"
+    -r | --resume) RESUMEPOINT="$2"
         shift ;;
-    -u | update) UPDATE="1" ;;
+    -u | --update) UPDATE="1" ;;
     --) shift
         break
         ;;
@@ -66,6 +66,7 @@ echo "This script should be run on your local pc (not on the server)."
 echo "Press [CTRL]-C to quit at any time."
 
 if (( ( RESUMEPOINT * UPDATE ) > 1 )); then
+  #TODO: transfer config file with folder structure
   echo
   echo "Transferring updated setup files..."
   echo "You will be prompted for $ADMIN_USERNAME's password multiple times"
