@@ -49,6 +49,7 @@ These parameters are preset to good default values and do not need to be modifie
 | NGINX_PROXY_NAME | The reverse proxy hostname that will be used for accessing Odoo, if not the server's hostname. <br /><br />*Example:* "odoo" for odoo.mydomain.com | "${SERVER_HOSTNAME}" | 
 |SERVER_EMAIL_DOMAIN| A seperate domain that may be used for automated server emails | "${SERVER_DOMAIN}" |
 |SERVER_AUTOMAIL_ADDRESS| The "From:" address for any server mail | "noreply@${SERVER_EMAIL_DOMAIN}"
+|SERVER_SETUP_PATH| The folder where setup files will be stored on the server.<br/><br/> **IMPORTANT:** Do not store other files at this location. They will be deleted. | "/setup"
 | NGINX_SSL_CRT_PATH | Full chain SSL certificate path | "/etc/letsencrypt/live/\${SERVER_HOSTNAME}.\${SERVER_DOMAIN}/fullchain.pem" |
 | NGINX_SSL_KEY_PATH | SSL Private Key Path | "/etc/letsencrypt/live/\${SERVER_HOSTNAME}.\${SERVER_DOMAIN}/privkey.pem" |
 | NGINX_SSL_TRUSTED_CERT_PATH | SSL Chain Path | "/etc/letsencrypt/live/\${SERVER_HOSTNAME}.\${SERVER_DOMAIN}/chain.pem" |
@@ -58,7 +59,7 @@ These parameters are preset to good default values and do not need to be modifie
 | ODOO_REPO_BRANCH | The git repo branch to clone for installation | '16.0' |
 | ODOO_CONF_PATH | The path for the Odoo configuration file | "/etc/odoo16.conf" |
 | ODOO_SERVICE_NAME | The Systemd service name for the Odoo application service | "odoo16" |
-| ODOO_INSTALL_PARENT_PATH | The parent directory of the Odoo installation | "/opt/odoo/odoo-server/" |
+| ODOO_INSTALL_PARENT_PATH | The parent directory of the Odoo installation | "/opt/odoo/odoo-server" |
 | ODOO_INSTALL_ROOT_PATH | The root directory of the Odoo installation | "\${ODOO_INSTALL_PARENT_PATH}/\${ODOO_REPO_BRANCH}" |
 | ODOO_LOGPATH | The logfile directory of the Odoo application | "/var/log/odoo" |
 | ODOO_ADDON_PATH | The Addon directory for Odoo | "${ODOO_INSTALL_ROOT_PATH}/addons" |

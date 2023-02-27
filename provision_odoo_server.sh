@@ -21,16 +21,11 @@ set -- "$VALID_ARGS"
 while [ $# -gt 0 ]; do
   #consume first arg
   case "$1" in
-    -c | --config) CONFIG_FILE="$2" 
-        shift ;;
-    -p | --port) FORCE_SSH_PORT="$2" 
-        shift ;;
-    -r | --resume) RESUMEPOINT="$2"
-        shift ;;
-    -u | --update) UPDATE="1" ;;
-    --) shift
-        break
-        ;;
+    -c | --config) CONFIG_FILE="$2" ; shift 2 ;;
+    -p | --port) FORCE_SSH_PORT="$2" ; shift 2 ;;
+    -r | --resume) RESUMEPOINT="$2" ; shift 2 ;;
+    -u | --update) UPDATE="1" ; shift ;;
+    --) shift ; break ;;
     -*) cat << EndHelp
 Usage: 
   ${0##*/} [-l] [-r STEP_NUM] -c CONFIG_FILE
@@ -47,13 +42,17 @@ Options:
 
 EndHelp
   esac
-  #move to next arg
-  shift
 done
 
 #LOAD CONFIG VARIABLES
+: "${CONFIG_FILE:?A configuration file is required.}"
 config_load "$CONFIG_FILE"
 
+# just to ensure no full drive deletion...
+: "${SERVER_SETUP_PATH:?Server setup path must be set...}"
+SERVER_SETUP_PATH="$SERVER_SETUP_PATH/server_setup"
+
+remoteConfigFile="$SERVER_SETUP_PATH/$(basename "$CONFIG_FILE")"
 
 if [[ -n "$FORCE_SSH_PORT" ]]; then
   echo "Forcing SSH port $FORCE_SSH_PORT for all connections..."
@@ -66,14 +65,15 @@ echo "This script should be run on your local pc (not on the server)."
 echo "Press [CTRL]-C to quit at any time."
 
 if (( ( RESUMEPOINT * UPDATE ) > 1 )); then
-  #TODO: transfer config file with folder structure
+  
   echo
   echo "Transferring updated setup files..."
   echo "You will be prompted for $ADMIN_USERNAME's password multiple times"
   ssh -p "$SSH_PORT" -t "$ADMIN_USERNAME@$SERVER_HOSTNAME.$SERVER_DOMAIN" 'rm -rf ~/.server_setup'
-  scp -P "$SSH_PORT" -r "$SCRIPT_DIR/$SCRIPTS_FOLDER_TO_TRANSFER/" "$ADMIN_USERNAME@$SERVER_HOSTNAME.$SERVER_DOMAIN:~/.server_setup"
-  ssh -p "$SSH_PORT" -t "$ADMIN_USERNAME@$SERVER_HOSTNAME.$SERVER_DOMAIN" 'sudo rm -rf /setup && '\
-    'sudo cp -r --no-preserve=mode,ownership ~/.server_setup /setup && rm -rf ~/.server_setup && sudo chmod -R u=rwx,g=rX,o-rwx /setup'
+  scp -P "$SSH_PORT" -r -- "$SCRIPT_DIR/$SCRIPTS_FOLDER_TO_TRANSFER/" "$remoteConfigFile" "$ADMIN_USERNAME@$SERVER_HOSTNAME.$SERVER_DOMAIN:~/.server_setup"
+  ssh -p "$SSH_PORT" -t "$ADMIN_USERNAME@$SERVER_HOSTNAME.$SERVER_DOMAIN" 'sudo rm -rf "'"$SERVER_SETUP_PATH"'" && ' \
+    'sudo cp -r --no-preserve=mode,ownership ~/.server_setup "'"$SERVER_SETUP_PATH"'" && ' \
+    'rm -rf ~/.server_setup && sudo chmod -R u=rwx,g=rX,o-rwx "'"$SERVER_SETUP_PATH"'"'
 
 fi
 
@@ -83,19 +83,19 @@ if (( CURRENT_POS >= RESUMEPOINT )); then
   sleep 2
   echo
   echo "Transferring setup files..."
-  echo "You will be asked for the root password for your Virtual Private Server (VPS)."
-  scp -p "$INITIAL_SSH_PORT" -r "$SCRIPT_DIR/$SCRIPTS_FOLDER_TO_TRANSFER" "root@$SERVER_HOSTNAME.$SERVER_DOMAIN:/setup"
+  echo "You will be asked for the root password for your server."
+  scp -P "$INITIAL_SSH_PORT" -r -- "$SCRIPT_DIR/$SCRIPTS_FOLDER_TO_TRANSFER" "$remoteConfigFile" "root@$SERVER_HOSTNAME.$SERVER_DOMAIN:$SERVER_SETUP_PATH"
 
   #connect SSH
   echo
   echo "Connecting to the remote system..."
-  echo "You will again be asked for the VPS root password."
+  echo "You will again be asked for the server's root password."
 
-  ssh -p "$INITIAL_SSH_PORT" -x "root@$SERVER_HOSTNAME.$SERVER_DOMAIN" "/setup/step1.sh"
+  ssh -p "$INITIAL_SSH_PORT" -x "root@$SERVER_HOSTNAME.$SERVER_DOMAIN" "\"$SERVER_SETUP_PATH/setup_sequence.sh\" -s 1 -c \"$remoteConfigFile\""
 
   echo
   echo "You should have seen 'Step 1 is complete.'"
-  echo "If you did not see this, something went wrong. Continue only if step 2 completed successfully."
+  echo "If you did not see this, something went wrong. Continue only if step 1 completed successfully."
   read -r -p "Press Enter to continue... ([CTRL]-C to exit)"
 
   #reconnect SSH
@@ -118,7 +118,7 @@ CURRENT_POS=$(( CURRENT_POS + 1 ))
 ######## STEP 2 #########
 if (( CURRENT_POS >= RESUMEPOINT )); then
 
-  ssh -p "$SSH_PORT" -t "$ADMIN_USERNAME@$SERVER_HOSTNAME.$SERVER_DOMAIN" 'sudo /setup/step2.sh'
+  ssh -p "$SSH_PORT" -t "$ADMIN_USERNAME@$SERVER_HOSTNAME.$SERVER_DOMAIN" "sudo \"$SERVER_SETUP_PATH/setup_sequence.sh\" -s 2 -c \"$remoteConfigFile\""
 
   echo
   echo "You should have seen 'Step 2 is complete.'"
